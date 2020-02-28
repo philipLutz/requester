@@ -2,7 +2,7 @@
 
 const express = require('express');
 const dotenv = require('dotenv');
-const request = require('request');
+const rp = require('request-promise-native');
 
 dotenv.config();
 const app = express();
@@ -20,32 +20,69 @@ app.get('/', (req, res) => {
    });
 });
 
-let response = null;
+function timeout(ms) {
+	return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function makeRequests() {
-  try {
-    await request(process.env.TARGETURL, function (error, response, body) {
-      response = {
-        error: error,
-        statusCode: response && response.statusCode,
-        timeStamp: Date.now()
-      };
-
-      allResponses.push(response);
-
-      console.log(response, `totalResponses: ${allResponses.length}`);
-
-      response = null;
-
-      setTimeout(function() {
-        makeRequests();
-      }, (process.env.TIMEOUT*1000));
-    });
-  } catch(error) {
-    console.log(error);
-    setTimeout(function() {
-      makeRequests();
-    }, 1000);
-  }
+	while (allResponses.length < process.env.LIMIT) {
+		let response = {
+			statusCode: null,
+			date: null,
+			message: null
+		};
+		await Promise.all([
+			rp(process.env.TARGETURL)
+			.then(function(res) {
+				response.statusCode = res.statusCode;
+				response.date = res.response.headers.date;
+				response.message = res.message;
+				console.log(response);
+				allResponses.push(response);
+			})
+			.catch(function(res) {
+				response.statusCode = res.statusCode;
+				response.date = res.response.headers.date;
+				response.message = res.message;
+				console.log(response);
+				allResponses.push(response);
+			}),
+			timeout(process.env.TIMEOUT*1000)
+		]);
+		// setTimeout(
+		// 	await rp(process.env.TARGETURL)
+		// 	.then(function(res) {
+		// 		response.statusCode = res.statusCode;
+		// 		response.date = res.response.headers.date;
+		// 		response.message = res.message;
+		// 		console.log(response);
+		// 		allResponses.push(response);
+		// 	})
+		// 	.catch(function(res) {
+		// 		response.statusCode = res.statusCode;
+		// 		response.date = res.response.headers.date;
+		// 		response.message = res.message;
+		// 		console.log(response);
+		// 		allResponses.push(response);
+		// 	}),
+		// 	process.env.TIMEOUT*1000
+		// )
+		// await rp(process.env.TARGETURL)
+		// .then(function(res) {
+		// 	response.statusCode = res.statusCode;
+		// 	response.date = res.response.headers.date;
+		// 	response.message = res.message;
+		// 	console.log(response);
+		// 	allResponses.push(response);
+		// })
+		// .catch(function(res) {
+		// 	response.statusCode = res.statusCode;
+		// 	response.date = res.response.headers.date;
+		// 	response.message = res.message;
+		// 	console.log(response);
+		// 	allResponses.push(response);
+		// })
+	}
 }
 
 app.listen(process.env.PORT);
